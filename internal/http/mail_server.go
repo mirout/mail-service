@@ -2,6 +2,7 @@ package http
 
 import (
 	"github.com/go-chi/chi/v5"
+	"log"
 	"mail-service/internal/http/handlers"
 	"net/http"
 	"strconv"
@@ -25,6 +26,13 @@ func NewMailServer(userServer handlers.UserHandlers, groupServer handlers.GroupH
 	}
 
 	r := chi.NewRouter()
+
+	r.Use(func(handler http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log.Println(r.Method, r.URL)
+			handler.ServeHTTP(w, r)
+		})
+	})
 
 	r.Route("/api/v1/users", s.users.Register)
 	r.Route("/api/v1/groups", s.groups.Register)

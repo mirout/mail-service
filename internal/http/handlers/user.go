@@ -18,10 +18,10 @@ type UserHandlers interface {
 }
 
 type userHandlers struct {
-	storage storage.UserService
+	storage storage.User
 }
 
-func NewUserHandlers(storage storage.UserService) UserHandlers {
+func NewUserHandlers(storage storage.User) UserHandlers {
 	return &userHandlers{storage: storage}
 }
 

@@ -24,6 +24,9 @@ type Options struct {
 
 	MailUsername string `long:"mail-username" description:"Mail username" required:"true"`
 	MailPassword string `long:"mail-password" description:"Mail password" required:"true"`
+
+	RedisAddr     string `long:"redis-addr" description:"Redis address" required:"true"`
+	RedisPassword string `long:"redis-password" description:"Redis password" default:""`
 }
 
 var appName = "mail-service"
@@ -48,21 +51,34 @@ func main() {
 	if err != nil {
 		log.Fatalf("Can't create sql storage: %v", err)
 	}
+	defer sqlStorage.Close()
+
+	queue, err := email.NewQueue(context.Background(), opts.RedisAddr, opts.RedisPassword, 0)
+	if err != nil {
+		log.Fatalf("Can't create queue: %v", err)
+	}
+	go queue.Run()
 
 	mailServerAddr := fmt.Sprintf("%s:%d", opts.SmtpHost, opts.SmtpPort)
-	mailServer, err := email.NewSender(mailServerAddr, opts.MailUsername, opts.MailPassword)
+	smtpConf := email.SmtpConfig{Addr: mailServerAddr, Username: opts.MailUsername, Password: opts.MailPassword}
 
+	mailSender, err := email.NewWorker(smtpConf, sqlStorage, sqlStorage, queue)
 	if err != nil {
 		log.Fatalf("Can't create mail server: %v", err)
 	}
+	defer mailSender.Close()
 
-	handlers := http.NewMailServer(
+	go mailSender.Run()
+
+	h := http.NewMailServer(
 		handlers.NewUserHandlers(sqlStorage),
 		handlers.NewGroupHandlers(sqlStorage),
-		handlers.NewMailHandlers(sqlStorage, sqlStorage, mailServer),
+		handlers.NewMailHandlers(sqlStorage, sqlStorage, mailSender),
 		opts.ServerPort,
 	)
 
-	handlers.ListenAndServe()
+	if err = h.ListenAndServe(); err != nil {
+		log.Fatalf("Can't start server: %v", err)
+	}
 
 }

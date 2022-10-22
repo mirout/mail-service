@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"mail-service/internal/model"
+	"time"
 )
 
 type SqlStorage struct {
@@ -23,6 +24,10 @@ func NewSqlStorage(ctx context.Context, driverName, dataSourceName string) (*Sql
 	}
 
 	return &SqlStorage{db: db}, nil
+}
+
+func (s *SqlStorage) Close() error {
+	return s.db.Close()
 }
 
 func (s *SqlStorage) CreateUser(ctx context.Context, user model.User) (uuid.UUID, error) {
@@ -148,4 +153,73 @@ func (s *SqlStorage) GetUsersByGroup(ctx context.Context, groupID uuid.UUID) ([]
 	}
 
 	return users, nil
+}
+
+func (s *SqlStorage) CreateMail(ctx context.Context, mail model.Mail) (uuid.UUID, error) {
+	result, err := s.db.NamedQueryContext(ctx, `
+		INSERT INTO mails (subject, body, to_user_id)
+		VALUES (:subject, :body, :to_user_id)
+		RETURNING id
+	`, mail)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("can't create mail: %w", err)
+	}
+
+	var id uuid.UUID
+
+	if result.Next() {
+		if err = result.Scan(&id); err != nil {
+			return uuid.Nil, fmt.Errorf("can't get id: %w", err)
+		}
+	}
+
+	return id, nil
+}
+
+func (s *SqlStorage) MarkAsSent(ctx context.Context, mailID uuid.UUID, time time.Time) error {
+	if _, err := s.db.ExecContext(ctx, `
+		UPDATE mails SET sent_at = $1 WHERE id = $2
+	`, time, mailID); err != nil {
+		return fmt.Errorf("can't mark as sent: %w", err)
+	}
+
+	return nil
+}
+
+func (s *SqlStorage) GetMailById(ctx context.Context, id uuid.UUID) (model.Mail, error) {
+	var mail model.Mail
+
+	if err := s.db.GetContext(ctx, &mail, `
+		SELECT * FROM mails WHERE id = $1
+	`, id); err != nil {
+		return model.Mail{}, fmt.Errorf("can't get mail: %w", err)
+	}
+
+	return mail, nil
+}
+
+func (s *SqlStorage) GetMailsByReceiver(ctx context.Context, receiverID uuid.UUID) ([]model.Mail, error) {
+	var mails []model.Mail
+
+	if err := s.db.SelectContext(ctx, &mails, `
+		SELECT * FROM mails WHERE to_user_id = $1
+	`, receiverID); err != nil {
+		return nil, fmt.Errorf("can't get mails by receiver: %w", err)
+	}
+
+	return mails, nil
+}
+
+func (s *SqlStorage) GetMailWithUser(ctx context.Context, id uuid.UUID) (model.MailWithUser, error) {
+	var mail model.MailWithUser
+
+	if err := s.db.GetContext(ctx, &mail, `
+		SELECT m.*, u.email, u.first_name, u.last_name FROM mails m
+		INNER JOIN users u ON m.to_user_id = u.id
+		WHERE m.id = $1
+	`, id); err != nil {
+		return model.MailWithUser{}, fmt.Errorf("can't get mail with user: %w", err)
+	}
+
+	return mail, nil
 }

@@ -20,10 +20,10 @@ type GroupHandlers interface {
 }
 
 type groupHandlers struct {
-	storage storage.GroupService
+	storage storage.Group
 }
 
-func NewGroupHandlers(storage storage.GroupService) GroupHandlers {
+func NewGroupHandlers(storage storage.Group) GroupHandlers {
 	return &groupHandlers{storage: storage}
 }
 

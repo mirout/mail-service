@@ -24,3 +24,13 @@ CREATE TABLE IF NOT EXISTS "users_groups" (
     CONSTRAINT users_groups_pkey PRIMARY KEY (user_id, group_id)
 );
 
+CREATE TABLE IF NOT EXISTS "mails" (
+    id uuid NOT NULL DEFAULT uuid_generate_v4() CONSTRAINT mails_pkey PRIMARY KEY,
+    to_user_id uuid references users NOT NULL,
+    subject TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    sent_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS "mails_to_user_id_index" ON "mails" (to_user_id);
