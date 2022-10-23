@@ -111,7 +111,7 @@ To get a mail, you need to send a GET request to `/api/v1/mails/{mail_id}`. It w
     "id": "7e2c026b-32b6-4957-94a3-b08b0242b213",
     "subject": "Subject",
     "body": "Body",
-    "send_at": "2021-09-05T12:00:00Z",
+    "sent_at": "2021-09-05T12:00:00Z",
     "created_at": "2021-09-05T12:00:00Z"
 }
 ```
@@ -123,7 +123,7 @@ To get all mails which was sent to user, you need to send a GET request to `/api
         "id": "7e2c026b-32b6-4957-94a3-b08b0242b213",
         "subject": "Subject",
         "body": "Body",
-        "send_at": "2021-09-05T12:00:00Z",
+        "sent_at": "2021-09-05T12:00:00Z",
         "created_at": "2021-09-05T12:00:00Z"
     }
 ]
@@ -132,3 +132,10 @@ To get all mails which was sent to user, you need to send a GET request to `/api
 ### `/img` endpoint
 
 This endpoint is used to get an 1x1 image to track if the email was opened. To get the image, you need to send a GET request to `/img/{mail_id}`.
+
+### Templates
+
+You can use the following templates in the body of the mail:
+- `{{.FirstName}}` - first name of the user
+- `{{.LastName}}` - last name of the user
+- `{{.Body}}` - body of the mail
