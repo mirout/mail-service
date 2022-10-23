@@ -13,9 +13,10 @@ type MailServer struct {
 	users  handlers.UserHandlers
 	groups handlers.GroupHandlers
 	mails  handlers.MailHandlers
+	imgs   handlers.ImageHandlers
 }
 
-func NewMailServer(userServer handlers.UserHandlers, groupServer handlers.GroupHandlers, mails handlers.MailHandlers, port int) *MailServer {
+func NewMailServer(userServer handlers.UserHandlers, groupServer handlers.GroupHandlers, mails handlers.MailHandlers, imgs handlers.ImageHandlers, port int) *MailServer {
 	s := &MailServer{
 		Server: &http.Server{
 			Addr: ":" + strconv.Itoa(port),
@@ -23,6 +24,7 @@ func NewMailServer(userServer handlers.UserHandlers, groupServer handlers.GroupH
 		users:  userServer,
 		groups: groupServer,
 		mails:  mails,
+		imgs:   imgs,
 	}
 
 	r := chi.NewRouter()
@@ -37,6 +39,7 @@ func NewMailServer(userServer handlers.UserHandlers, groupServer handlers.GroupH
 	r.Route("/api/v1/users", s.users.Register)
 	r.Route("/api/v1/groups", s.groups.Register)
 	r.Route("/api/v1/mails", s.mails.Register)
+	r.Route("/img", s.imgs.Register)
 
 	s.Handler = r
 	return s

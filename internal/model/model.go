@@ -26,6 +26,7 @@ type Mail struct {
 	Body      string         `json:"body" db:"body"`
 	CreatedAt string         `json:"created_at" db:"created_at"`
 	SentAt    sql.NullString `json:"sent_at" db:"sent_at"`
+	Watched   bool           `json:"watched" db:"watched"`
 }
 
 type MailWithUser struct {

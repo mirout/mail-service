@@ -74,6 +74,7 @@ func main() {
 		handlers.NewUserHandlers(sqlStorage),
 		handlers.NewGroupHandlers(sqlStorage),
 		handlers.NewMailHandlers(sqlStorage, sqlStorage, mailSender),
+		handlers.NewImageHandlers(sqlStorage),
 		opts.ServerPort,
 	)
 

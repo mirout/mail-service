@@ -1,10 +1,12 @@
 package email
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
+	"html/template"
 	"mail-service/internal/model"
 	"mail-service/internal/storage"
 	"time"
@@ -82,7 +84,7 @@ func (m *MailWorker) SendMailToUser(ctx context.Context, mail model.Mail) error 
 		return fmt.Errorf("can't get user: %w", err)
 	}
 
-	err = m.Send(user.Email, mail.Body)
+	err = m.Send(user, mail)
 	if err != nil {
 		return fmt.Errorf("can't send mail: %w", err)
 	}
@@ -95,13 +97,38 @@ func (m *MailWorker) SendMailToUser(ctx context.Context, mail model.Mail) error 
 	return nil
 }
 
-func (m *MailWorker) Send(to, body string) error {
+func buildHtml(user model.User, mail model.Mail) (bytes.Buffer, error) {
+	tmpl, err := template.ParseFiles("templates/template.html")
+	if err != nil {
+		return bytes.Buffer{}, fmt.Errorf("can't parse template: %w", err)
+	}
+
+	var b bytes.Buffer
+	err = tmpl.Execute(&b, struct {
+		FirstName string
+		LastName  string
+		Body      string
+		Id        string
+	}{
+		FirstName: user.FirstName,
+		LastName:  user.LastName,
+		Body:      mail.Body,
+		Id:        mail.ID.String(),
+	})
+	if err != nil {
+		return bytes.Buffer{}, fmt.Errorf("can't execute template: %w", err)
+	}
+	return b, nil
+
+}
+
+func (m *MailWorker) Send(user model.User, mail model.Mail) error {
 	err := m.smtpClient.Mail(m.author, nil)
 	if err != nil {
 		return fmt.Errorf("can't set author: %w", err)
 	}
 
-	err = m.smtpClient.Rcpt(to)
+	err = m.smtpClient.Rcpt(user.Email)
 	if err != nil {
 		return fmt.Errorf("can't set recipient: %w", err)
 	}
@@ -111,7 +138,14 @@ func (m *MailWorker) Send(to, body string) error {
 		return fmt.Errorf("can't create data writer: %w", err)
 	}
 
-	_, err = fmt.Fprintf(wc, body)
+	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
+	body, err := buildHtml(user, mail)
+	if err != nil {
+		return fmt.Errorf("can't build html: %w", err)
+	}
+	msg := fmt.Sprintf("Subject: %s\n%s\n%s\n", mail.Subject, mime, body.String())
+
+	_, err = fmt.Fprintf(wc, msg)
 	if err != nil {
 		return fmt.Errorf("can't write message: %w", err)
 	}
@@ -151,7 +185,7 @@ func (m *MailWorker) Run() {
 				fmt.Printf("can't get user: %v", err)
 				continue
 			}
-			err = m.Send(user.Email, mail.Body)
+			err = m.Send(user, mail)
 			if err != nil {
 				fmt.Printf("can't send mail: %v", err)
 				continue

@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS "mails" (
     subject TEXT NOT NULL,
     body TEXT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    sent_at TIMESTAMP
+    sent_at TIMESTAMP,
+    watched BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE INDEX IF NOT EXISTS "mails_to_user_id_index" ON "mails" (to_user_id);

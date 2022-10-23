@@ -186,6 +186,16 @@ func (s *SqlStorage) MarkAsSent(ctx context.Context, mailID uuid.UUID, time time
 	return nil
 }
 
+func (s *SqlStorage) MarkAsWatched(ctx context.Context, mailID uuid.UUID) error {
+	if _, err := s.db.ExecContext(ctx, `
+		UPDATE mails SET watched = TRUE WHERE id = $1
+	`, mailID); err != nil {
+		return fmt.Errorf("can't mark as watched: %w", err)
+	}
+
+	return nil
+}
+
 func (s *SqlStorage) GetMailById(ctx context.Context, id uuid.UUID) (model.Mail, error) {
 	var mail model.Mail
 
