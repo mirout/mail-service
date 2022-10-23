@@ -51,7 +51,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("Can't create sql storage: %v", err)
 	}
-	defer sqlStorage.Close()
+	defer func(sqlStorage *storage.SqlStorage) {
+		err := sqlStorage.Close()
+		if err != nil {
+			log.Fatalf("Can't close sql storage: %v", err)
+		}
+	}(sqlStorage)
 
 	redisAddr := fmt.Sprintf("%s:%d", opts.RedisHost, opts.RedisPort)
 
@@ -68,7 +73,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("Can't create mail server: %v", err)
 	}
-	defer mailSender.Close()
+	defer func(mailSender *email.MailWorker) {
+		err := mailSender.Close()
+		if err != nil {
+			log.Printf("Can't close mail server: %v", err)
+		}
+	}(mailSender)
 
 	go mailSender.Run()
 
