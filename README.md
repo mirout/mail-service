@@ -34,7 +34,7 @@ All time fields should be in the RFC3339 format.
 
 #### `/users` endpoint
 To register a new user, you need to send a POST request to `/api/v1/users` with the following body:
-```js
+```json5
 {
     "email": "email@example.com",
     "first_name" : "First Name",
@@ -51,7 +51,7 @@ To get a user, you need to send a GET request to `/api/v1/users` with one of the
 - `email` - email of the user
 
 It will return a response with the user:
-```js
+```json5
 {
     "id": "7e2c026b-32b6-4957-94a3-b08b0242b213",
     "email": "email@example.com",
@@ -64,7 +64,7 @@ It will return a response with the user:
 #### `/groups` endpoint
 
 To create a new group, you need to send a POST request to `/api/v1/groups` with the following body:
-```js
+```json5
 {
     "name": "Group Name"
 }
@@ -76,7 +76,7 @@ It will return a response with id of the group:
 ```
 
 To get a group, you need to send a GET request to `/api/v1/groups` with id of the group in the query params. It will return a response with the group:
-```js
+```json5
 {
     "id": "7e2c026b-32b6-4957-94a3-b08b0242b213",
     "name": "Group Name",
@@ -90,7 +90,7 @@ To remove a user from a group, you need to send a POST request to `/{group_id}/r
 #### `/mails` endpoint
 
 To send a mail to user, you need to send a POST request to `/api/v1/mails/send/to/user/{user_id}` with the following body:
-```js
+```json5
 {
     "subject": "Subject",
     "body": "Body",
@@ -99,7 +99,7 @@ To send a mail to user, you need to send a POST request to `/api/v1/mails/send/t
 ```
 
 To send a mail to group, you need to send a POST request to `/api/v1/mails/send/to/group/{group_id}` with the following body:
-```js
+```json5
 {
     "subject": "Subject",
     "body": "Body",
@@ -108,7 +108,7 @@ To send a mail to group, you need to send a POST request to `/api/v1/mails/send/
 ```
 
 To get a mail, you need to send a GET request to `/api/v1/mails/{mail_id}`. It will return a response with the mail:
-```js
+```json5
 {
     "id": "7e2c026b-32b6-4957-94a3-b08b0242b213",
     "subject": "Subject",
@@ -119,7 +119,7 @@ To get a mail, you need to send a GET request to `/api/v1/mails/{mail_id}`. It w
 ```
 
 To get all mails which was sent to user, you need to send a GET request to `/api/v1/mails/to/user/{user_id}`. It will return a response with the list of mails:
-```js
+```json5
 [
     {
         "id": "7e2c026b-32b6-4957-94a3-b08b0242b213",
