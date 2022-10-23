@@ -26,11 +26,13 @@ Also you can edit the `docker-compose.yml` file to change the following args:
 
 ## Usage
 
-All requests should be sent to the `/api/v1` endpoint.
+### Handlers
+
+All requests should be sent to the `/api/v1` endpoint except the `/img` endpoint.
 
 All time fields should be in the RFC3339 format.
 
-### `/users` endpoint
+#### `/users` endpoint
 To register a new user, you need to send a POST request to `/api/v1/users` with the following body:
 ```js
 {
@@ -59,7 +61,7 @@ It will return a response with the user:
 }
 ```
 
-### `/groups` endpoint
+#### `/groups` endpoint
 
 To create a new group, you need to send a POST request to `/api/v1/groups` with the following body:
 ```js
@@ -85,7 +87,7 @@ To get a group, you need to send a GET request to `/api/v1/groups` with id of th
 To add a user to a group, you need to send a POST request to `/api/v1/groups/{group_id}/add/{user_id}` with the empty body.
 To remove a user from a group, you need to send a POST request to `/{group_id}/remove/{user_id}` with the empty body.
 
-### `/mails` endpoint
+#### `/mails` endpoint
 
 To send a mail to user, you need to send a POST request to `/api/v1/mails/send/to/user/{user_id}` with the following body:
 ```js
@@ -129,7 +131,7 @@ To get all mails which was sent to user, you need to send a GET request to `/api
 ]
 ```
 
-### `/img` endpoint
+#### `/img` endpoint
 
 This endpoint is used to get an 1x1 image to track if the email was opened. To get the image, you need to send a GET request to `/img/{mail_id}`.
 
