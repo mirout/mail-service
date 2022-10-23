@@ -40,9 +40,11 @@ type MailWorker struct {
 	users storage.User
 
 	queue DelayedQueue
+
+	host string
 }
 
-func NewWorker(smtpConfig SmtpConfig, mails storage.Mail, users storage.User, q DelayedQueue) (*MailWorker, error) {
+func NewWorker(host string, smtpConfig SmtpConfig, mails storage.Mail, users storage.User, q DelayedQueue) (*MailWorker, error) {
 	cl, err := smtp.Dial(smtpConfig.Addr)
 	if err != nil {
 		return nil, fmt.Errorf("can't dial: %w", err)
@@ -65,6 +67,7 @@ func NewWorker(smtpConfig SmtpConfig, mails storage.Mail, users storage.User, q 
 		mails:      mails,
 		users:      users,
 		queue:      q,
+		host:       host,
 	}, nil
 }
 
@@ -81,6 +84,8 @@ func (m *MailWorker) SendMailToUser(ctx context.Context, mail model.Mail) error 
 	if err != nil {
 		return fmt.Errorf("can't create mail: %w", err)
 	}
+
+	mail.ID = id
 
 	user, err := m.users.GetUser(ctx, mail.ToUserId)
 	if err != nil {
@@ -100,7 +105,7 @@ func (m *MailWorker) SendMailToUser(ctx context.Context, mail model.Mail) error 
 	return nil
 }
 
-func buildHtml(user model.User, mail model.Mail) (bytes.Buffer, error) {
+func buildHtml(host string, user model.User, mail model.Mail) (bytes.Buffer, error) {
 	tmpl, err := template.ParseFiles("templates/template.html")
 	if err != nil {
 		return bytes.Buffer{}, fmt.Errorf("can't parse template: %w", err)
@@ -116,7 +121,7 @@ func buildHtml(user model.User, mail model.Mail) (bytes.Buffer, error) {
 		FirstName: user.FirstName,
 		LastName:  user.LastName,
 		Body:      mail.Body,
-		ImgUrl:    fmt.Sprintf("http://localhost:8080/img/%s.png", mail.ID.String()),
+		ImgUrl:    fmt.Sprintf("%s/img/%s.png", host, mail.ID.String()),
 	})
 	if err != nil {
 		return bytes.Buffer{}, fmt.Errorf("can't execute template: %w", err)
@@ -142,7 +147,7 @@ func (m *MailWorker) Send(user model.User, mail model.Mail) error {
 	}
 
 	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
-	body, err := buildHtml(user, mail)
+	body, err := buildHtml(m.host, user, mail)
 	if err != nil {
 		return fmt.Errorf("can't build html: %w", err)
 	}

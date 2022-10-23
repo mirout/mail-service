@@ -24,6 +24,7 @@ type Options struct {
 
 	MailUsername string `long:"mail-username" description:"Mail username" required:"true"`
 	MailPassword string `long:"mail-password" description:"Mail password" required:"true"`
+	MailHost     string `long:"mail-host" description:"Mail host" required:"true"`
 
 	RedisHost string `long:"redis-host" description:"Redis address" required:"true"`
 	RedisPort uint   `long:"redis-port" description:"Redis port" default:"6379"`
@@ -69,7 +70,7 @@ func main() {
 	mailServerAddr := fmt.Sprintf("%s:%d", opts.SmtpHost, opts.SmtpPort)
 	smtpConf := email.SmtpConfig{Addr: mailServerAddr, Username: opts.MailUsername, Password: opts.MailPassword}
 
-	mailSender, err := email.NewWorker(smtpConf, sqlStorage, sqlStorage, queue)
+	mailSender, err := email.NewWorker(opts.MailHost, smtpConf, sqlStorage, sqlStorage, queue)
 	if err != nil {
 		log.Fatalf("Can't create mail server: %v", err)
 	}
