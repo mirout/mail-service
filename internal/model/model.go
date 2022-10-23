@@ -29,6 +29,12 @@ type Mail struct {
 	Watched   bool           `json:"watched" db:"watched"`
 }
 
+type MailJson struct {
+	Subject string `json:"subject"`
+	Body    string `json:"body"`
+	SendAt  string `json:"send_at"`
+}
+
 type MailWithUser struct {
 	ID        uuid.UUID      `json:"id" db:"id"`
 	FirstName string         `json:"first_name" db:"first_name"`

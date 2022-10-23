@@ -1,7 +1,8 @@
 package handlers
 
 import (
-	"bytes"
+	"context"
+	"encoding/json"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"log"
@@ -15,9 +16,9 @@ import (
 type MailHandlers interface {
 	Register(r chi.Router)
 	SendMailToUser(w http.ResponseWriter, r *http.Request)
-	SendDelayedMailToUser(w http.ResponseWriter, r *http.Request)
 	SendMailToGroup(w http.ResponseWriter, r *http.Request)
-	SendDelayedMailToGroup(w http.ResponseWriter, r *http.Request)
+	GetMailsSentToUser(w http.ResponseWriter, r *http.Request)
+	GetMailById(w http.ResponseWriter, r *http.Request)
 }
 
 type mailHandlers struct {
@@ -33,8 +34,8 @@ func NewMailHandlers(groups storage.Group, users storage.User, sender email.Mail
 func (s *mailHandlers) Register(r chi.Router) {
 	r.Post("/to/user/{user_id}", s.SendMailToUser)
 	r.Post("/to/group/{group_id}", s.SendMailToGroup)
-	r.Post("/to/user/{user_id}/{at}", s.SendDelayedMailToUser)
-	r.Post("/to/group/{group_id}/{at}", s.SendDelayedMailToGroup)
+	r.Get("/to/user/{user_id}", s.GetMailsSentToUser)
+	r.Get("/{mail_id}", s.GetMailById)
 }
 
 func (s *mailHandlers) SendMailToUser(w http.ResponseWriter, r *http.Request) {
@@ -51,14 +52,25 @@ func (s *mailHandlers) SendMailToUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg := bytes.Buffer{}
-	_, err = msg.ReadFrom(r.Body)
+	var mail model.MailJson
+	err = json.NewDecoder(r.Body).Decode(&mail)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
-	err = s.sender.SendMailToUser(r.Context(), model.Mail{
-		ToUserId: user.ID,
-		Subject:  "Test",
-		Body:     msg.String(),
-	})
+	if mail.Subject == "" || mail.Body == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	err = s.sendToUser(r.Context(), mail, user)
+
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }
 
 func (s *mailHandlers) SendMailToGroup(w http.ResponseWriter, r *http.Request) {
@@ -75,28 +87,51 @@ func (s *mailHandlers) SendMailToGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg := bytes.Buffer{}
-	_, err = msg.ReadFrom(r.Body)
-
-	for _, user := range users {
-		err = s.sender.SendMailToUser(r.Context(), model.Mail{
-			ToUserId: user.ID,
-			Subject:  "Test",
-			Body:     msg.String(),
-		})
-	}
-}
-
-func (s *mailHandlers) SendDelayedMailToUser(w http.ResponseWriter, r *http.Request) {
-	userId := chi.URLParam(r, "user_id")
-	id, err := uuid.Parse(userId)
+	var mail model.MailJson
+	err = json.NewDecoder(r.Body).Decode(&mail)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	at := chi.URLParam(r, "at")
-	parse, err := time.Parse(time.RFC3339, at)
+	if mail.Subject == "" || mail.Body == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	for _, user := range users {
+		err = s.sendToUser(r.Context(), mail, user)
+		if err != nil {
+			log.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+}
+
+func (s *mailHandlers) sendToUser(ctx context.Context, mail model.MailJson, user model.User) error {
+	if mail.SendAt == "" {
+		return s.sender.SendMailToUser(ctx, model.Mail{
+			ToUserId: user.ID,
+			Subject:  mail.Subject,
+			Body:     mail.Body,
+		})
+	} else {
+		parse, err := time.Parse(time.RFC3339, mail.SendAt)
+		if err != nil {
+			return err
+		}
+		return s.sender.CreateDelayedMail(ctx, model.Mail{
+			ToUserId: user.ID,
+			Subject:  mail.Subject,
+			Body:     mail.Body,
+		}, parse)
+	}
+}
+
+func (s *mailHandlers) GetMailsSentToUser(w http.ResponseWriter, r *http.Request) {
+	userId := chi.URLParam(r, "user_id")
+	id, err := uuid.Parse(userId)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -108,68 +143,36 @@ func (s *mailHandlers) SendDelayedMailToUser(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	msg := bytes.Buffer{}
-	_, err = msg.ReadFrom(r.Body)
+	mails, err := s.sender.GetMailsBySentTo(r.Context(), user.ID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	err = s.sender.CreateDelayedMail(r.Context(), model.Mail{
-		ToUserId: user.ID,
-		Subject:  "Test",
-		Body:     msg.String(),
-	}, parse)
-
+	err = json.NewEncoder(w).Encode(mails)
 	if err != nil {
-		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
 }
 
-func (s *mailHandlers) SendDelayedMailToGroup(w http.ResponseWriter, r *http.Request) {
-	groupId := chi.URLParam(r, "group_id")
-	id, err := uuid.Parse(groupId)
+func (s *mailHandlers) GetMailById(w http.ResponseWriter, r *http.Request) {
+	mailId := chi.URLParam(r, "mail_id")
+	id, err := uuid.Parse(mailId)
 	if err != nil {
-		log.Print(err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	at := chi.URLParam(r, "at")
-	parse, err := time.Parse(time.RFC3339, at)
+	mail, err := s.sender.GetMailById(r.Context(), id)
 	if err != nil {
-		log.Print(err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	users, err := s.groups.GetUsersByGroup(r.Context(), id)
-	if err != nil {
-		log.Print(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	msg := bytes.Buffer{}
-	_, err = msg.ReadFrom(r.Body)
+	err = json.NewEncoder(w).Encode(mail)
 	if err != nil {
-		log.Print(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
-	}
-
-	for _, user := range users {
-		err = s.sender.CreateDelayedMail(r.Context(), model.Mail{
-			ToUserId: user.ID,
-			Subject:  "Test",
-			Body:     msg.String(),
-		}, parse)
-		if err != nil {
-			log.Println(err)
-			continue
-		}
 	}
 }

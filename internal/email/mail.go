@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
+	"github.com/google/uuid"
 	"html/template"
 	"mail-service/internal/model"
 	"mail-service/internal/storage"
@@ -15,6 +16,8 @@ import (
 type MailSender interface {
 	SendMailToUser(ctx context.Context, mail model.Mail) error
 	CreateDelayedMail(ctx context.Context, mail model.Mail, delay time.Time) error
+	GetMailsBySentTo(ctx context.Context, userId uuid.UUID) ([]model.Mail, error)
+	GetMailById(ctx context.Context, id uuid.UUID) (model.Mail, error)
 }
 
 type SmtpConfig struct {
@@ -197,4 +200,12 @@ func (m *MailWorker) Run() {
 			}
 		}
 	}
+}
+
+func (m *MailWorker) GetMailsBySentTo(ctx context.Context, userId uuid.UUID) ([]model.Mail, error) {
+	return m.mails.GetMailsBySentTo(ctx, userId)
+}
+
+func (m *MailWorker) GetMailById(ctx context.Context, id uuid.UUID) (model.Mail, error) {
+	return m.mails.GetMailById(ctx, id)
 }

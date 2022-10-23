@@ -27,6 +27,6 @@ type Mail interface {
 	MarkAsSent(ctx context.Context, id uuid.UUID, time time.Time) error
 	MarkAsWatched(ctx context.Context, id uuid.UUID) error
 	GetMailById(ctx context.Context, id uuid.UUID) (model.Mail, error)
-	GetMailsByReceiver(ctx context.Context, userID uuid.UUID) ([]model.Mail, error)
+	GetMailsBySentTo(ctx context.Context, userID uuid.UUID) ([]model.Mail, error)
 	GetMailWithUser(ctx context.Context, id uuid.UUID) (model.MailWithUser, error)
 }

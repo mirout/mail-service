@@ -208,7 +208,7 @@ func (s *SqlStorage) GetMailById(ctx context.Context, id uuid.UUID) (model.Mail,
 	return mail, nil
 }
 
-func (s *SqlStorage) GetMailsByReceiver(ctx context.Context, receiverID uuid.UUID) ([]model.Mail, error) {
+func (s *SqlStorage) GetMailsBySentTo(ctx context.Context, receiverID uuid.UUID) ([]model.Mail, error) {
 	var mails []model.Mail
 
 	if err := s.db.SelectContext(ctx, &mails, `
