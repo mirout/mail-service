@@ -25,8 +25,8 @@ type Options struct {
 	MailUsername string `long:"mail-username" description:"Mail username" required:"true"`
 	MailPassword string `long:"mail-password" description:"Mail password" required:"true"`
 
-	RedisAddr     string `long:"redis-addr" description:"Redis address" required:"true"`
-	RedisPassword string `long:"redis-password" description:"Redis password" default:""`
+	RedisHost string `long:"redis-host" description:"Redis address" required:"true"`
+	RedisPort uint   `long:"redis-port" description:"Redis port" default:"6379"`
 }
 
 var appName = "mail-service"
@@ -43,7 +43,7 @@ func main() {
 		opts.DBHost,
 		opts.DBPort,
 		appName,
-		os.Getenv("DB_PASSWORD"),
+		os.Getenv("POSTGRES_PASSWORD"),
 		appName,
 	)
 
@@ -53,7 +53,9 @@ func main() {
 	}
 	defer sqlStorage.Close()
 
-	queue, err := email.NewQueue(context.Background(), opts.RedisAddr, opts.RedisPassword, 0)
+	redisAddr := fmt.Sprintf("%s:%d", opts.RedisHost, opts.RedisPort)
+
+	queue, err := email.NewQueue(context.Background(), redisAddr, os.Getenv("REDIS_PASSWORD"), 0)
 	if err != nil {
 		log.Fatalf("Can't create queue: %v", err)
 	}

@@ -1,0 +1,55 @@
+version: '3.9'
+
+services:
+  db:
+    image: postgres:14.1-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=mail-service
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    ports:
+      - '5464:5432'
+    volumes:
+      - db:/var/lib/postgresql/data
+      - ./sql/up.sql:/docker-entrypoint-initdb.d/create_tables.sql
+
+  cache:
+    image: redis:6.2-alpine
+    restart: always
+    ports:
+      - '6379:6379'
+    command: redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - cache:/data
+
+  server:
+    container_name: mail-service
+    build: .
+    depends_on:
+      - cache
+      - db
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    entrypoint:
+      - /mail-service
+      - --smtp-host
+      - "smtp.gmail.com"
+      - --smtp-port
+      - "587"
+      - --db-host
+      - db
+      - --mail-username
+      - ${MAIL_USERNAME}
+      - --mail-password
+      - ${MAIL_PASSWORD}
+      - --redis-host
+      - cache
+    ports:
+      - "8080:8080"
+
+volumes:
+  db:
+    driver: local
+  cache:
+    driver: local

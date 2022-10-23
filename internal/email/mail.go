@@ -108,12 +108,12 @@ func buildHtml(user model.User, mail model.Mail) (bytes.Buffer, error) {
 		FirstName string
 		LastName  string
 		Body      string
-		Id        string
+		ImgUrl    string
 	}{
 		FirstName: user.FirstName,
 		LastName:  user.LastName,
 		Body:      mail.Body,
-		Id:        mail.ID.String(),
+		ImgUrl:    fmt.Sprintf("http://localhost:8080/img/%s.png", mail.ID.String()),
 	})
 	if err != nil {
 		return bytes.Buffer{}, fmt.Errorf("can't execute template: %w", err)
