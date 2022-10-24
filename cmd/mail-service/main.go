@@ -6,9 +6,12 @@ import (
 	"github.com/jessevdk/go-flags"
 	_ "github.com/lib/pq"
 	"log"
-	"mail-service/internal/email"
-	"mail-service/internal/http"
-	"mail-service/internal/http/handlers"
+	"mail-service/internal/queue"
+	"mail-service/internal/services"
+	"mail-service/internal/services/group"
+	"mail-service/internal/services/img"
+	"mail-service/internal/services/mail"
+	"mail-service/internal/services/user"
 	"mail-service/internal/storage"
 	"os"
 )
@@ -61,20 +64,20 @@ func main() {
 
 	redisAddr := fmt.Sprintf("%s:%d", opts.RedisHost, opts.RedisPort)
 
-	queue, err := email.NewQueue(context.Background(), redisAddr, os.Getenv("REDIS_PASSWORD"), 0)
+	delayedQueue, err := queue.NewQueue(context.Background(), redisAddr, os.Getenv("REDIS_PASSWORD"), 0)
 	if err != nil {
-		log.Fatalf("Can't create queue: %v", err)
+		log.Fatalf("Can't create delayedQueue: %v", err)
 	}
-	go queue.Run()
+	go delayedQueue.Run()
 
 	mailServerAddr := fmt.Sprintf("%s:%d", opts.SmtpHost, opts.SmtpPort)
-	smtpConf := email.SmtpConfig{Addr: mailServerAddr, Username: opts.MailUsername, Password: opts.MailPassword}
+	smtpConf := mail.SmtpConfig{Addr: mailServerAddr, Username: opts.MailUsername, Password: opts.MailPassword}
 
-	mailSender, err := email.NewWorker(opts.MailHost, smtpConf, sqlStorage, sqlStorage, queue)
+	mailSender, err := mail.NewWorker(opts.MailHost, smtpConf, sqlStorage, sqlStorage, delayedQueue)
 	if err != nil {
 		log.Fatalf("Can't create mail server: %v", err)
 	}
-	defer func(mailSender *email.MailWorker) {
+	defer func(mailSender *mail.MailWorker) {
 		err := mailSender.Close()
 		if err != nil {
 			log.Printf("Can't close mail server: %v", err)
@@ -83,11 +86,11 @@ func main() {
 
 	go mailSender.Run()
 
-	h := http.NewMailServer(
-		handlers.NewUserHandlers(sqlStorage),
-		handlers.NewGroupHandlers(sqlStorage),
-		handlers.NewMailHandlers(sqlStorage, sqlStorage, mailSender),
-		handlers.NewImageHandlers(sqlStorage),
+	h := services.NewMailServer(
+		user.NewUserHandlers(sqlStorage),
+		group.NewGroupHandlers(sqlStorage),
+		mail.NewMailHandlers(sqlStorage, sqlStorage, mailSender),
+		img.NewImageHandlers(sqlStorage),
 		opts.ServerPort,
 	)
 

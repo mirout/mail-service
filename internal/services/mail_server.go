@@ -1,22 +1,25 @@
-package http
+package services
 
 import (
 	"github.com/go-chi/chi/v5"
 	"log"
-	"mail-service/internal/http/handlers"
+	"mail-service/internal/services/group"
+	"mail-service/internal/services/img"
+	"mail-service/internal/services/mail"
+	"mail-service/internal/services/user"
 	"net/http"
 	"strconv"
 )
 
 type MailServer struct {
 	*http.Server
-	users  handlers.UserHandlers
-	groups handlers.GroupHandlers
-	mails  handlers.MailHandlers
-	imgs   handlers.ImageHandlers
+	users  user.UserHandlers
+	groups group.GroupHandlers
+	mails  mail.MailHandlers
+	imgs   img.ImageHandlers
 }
 
-func NewMailServer(userServer handlers.UserHandlers, groupServer handlers.GroupHandlers, mails handlers.MailHandlers, imgs handlers.ImageHandlers, port int) *MailServer {
+func NewMailServer(userServer user.UserHandlers, groupServer group.GroupHandlers, mails mail.MailHandlers, imgs img.ImageHandlers, port int) *MailServer {
 	s := &MailServer{
 		Server: &http.Server{
 			Addr: ":" + strconv.Itoa(port),

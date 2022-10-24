@@ -1,4 +1,4 @@
-package email
+package queue
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 type Mail struct {
 	ID uuid.UUID `json:"id" db:"id"`
 }
+
 type DelayedQueue interface {
 	Enqueue(ctx context.Context, mail Mail, runAt int64) error
 	GetReadyChannel() <-chan []Mail

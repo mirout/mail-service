@@ -1,4 +1,4 @@
-package handlers
+package img
 
 import (
 	"github.com/go-chi/chi/v5"
@@ -44,8 +44,18 @@ func (s *imageHandlers) GetImage(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}(file)
 	w.Header().Set("Content-Type", "application/octet-stream")
 
-	io.Copy(w, file)
+	_, err = io.Copy(w, file)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 }

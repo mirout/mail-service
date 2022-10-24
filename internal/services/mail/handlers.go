@@ -1,4 +1,4 @@
-package handlers
+package mail
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"log"
-	"mail-service/internal/email"
 	"mail-service/internal/model"
 	"mail-service/internal/storage"
 	"net/http"
@@ -24,10 +23,10 @@ type MailHandlers interface {
 type mailHandlers struct {
 	groups storage.Group
 	users  storage.User
-	sender email.MailSender
+	sender MailSender
 }
 
-func NewMailHandlers(groups storage.Group, users storage.User, sender email.MailSender) MailHandlers {
+func NewMailHandlers(groups storage.Group, users storage.User, sender MailSender) MailHandlers {
 	return &mailHandlers{groups: groups, users: users, sender: sender}
 }
 
@@ -83,6 +82,7 @@ func (s *mailHandlers) SendMailToGroup(w http.ResponseWriter, r *http.Request) {
 
 	users, err := s.groups.GetUsersByGroup(r.Context(), id)
 	if err != nil {
+		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -139,6 +139,7 @@ func (s *mailHandlers) GetMailsSentToUser(w http.ResponseWriter, r *http.Request
 
 	user, err := s.users.GetUser(r.Context(), id)
 	if err != nil {
+		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

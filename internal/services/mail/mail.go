@@ -1,4 +1,4 @@
-package email
+package mail
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"html/template"
 	"mail-service/internal/model"
+	"mail-service/internal/queue"
 	"mail-service/internal/storage"
 	"time"
 )
@@ -26,12 +27,6 @@ type SmtpConfig struct {
 	Password string
 }
 
-type RedisConfig struct {
-	Addr     string
-	Password string
-	DB       int
-}
-
 type MailWorker struct {
 	smtpClient *smtp.Client
 	author     string
@@ -39,12 +34,12 @@ type MailWorker struct {
 	mails storage.Mail
 	users storage.User
 
-	queue DelayedQueue
+	queue queue.DelayedQueue
 
 	host string
 }
 
-func NewWorker(host string, smtpConfig SmtpConfig, mails storage.Mail, users storage.User, q DelayedQueue) (*MailWorker, error) {
+func NewWorker(host string, smtpConfig SmtpConfig, mails storage.Mail, users storage.User, q queue.DelayedQueue) (*MailWorker, error) {
 	cl, err := smtp.Dial(smtpConfig.Addr)
 	if err != nil {
 		return nil, fmt.Errorf("can't dial: %w", err)
@@ -170,7 +165,7 @@ func (m *MailWorker) CreateDelayedMail(ctx context.Context, mail model.Mail, del
 	if err != nil {
 		return fmt.Errorf("can't create mail: %w", err)
 	}
-	err = m.queue.Enqueue(ctx, Mail{ID: id}, delay.Unix())
+	err = m.queue.Enqueue(ctx, queue.Mail{ID: id}, delay.Unix())
 	if err != nil {
 		return fmt.Errorf("can't enqueue mail: %w", err)
 	}
