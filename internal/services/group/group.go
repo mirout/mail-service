@@ -1,7 +1,9 @@
 package group
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"log"
@@ -92,9 +94,11 @@ func (s *groupHandlers) GetGroupInfo(w http.ResponseWriter, r *http.Request) {
 		group, err = s.storage.GetGroupByName(r.Context(), groupName)
 	}
 
-	if err != nil {
-		log.Println(err)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		w.WriteHeader(http.StatusInternalServerError)
+		return
+	} else if errors.Is(err, sql.ErrNoRows) {
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 

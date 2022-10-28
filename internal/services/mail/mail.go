@@ -14,8 +14,8 @@ import (
 	"time"
 )
 
-type MailSender interface {
-	SendMailToUser(ctx context.Context, mail model.Mail) error
+type Sender interface {
+	CreateAndSend(ctx context.Context, mail model.Mail) error
 	CreateDelayedMail(ctx context.Context, mail model.Mail, delay time.Time) error
 	GetMailsBySentTo(ctx context.Context, userId uuid.UUID) ([]model.Mail, error)
 	GetMailById(ctx context.Context, id uuid.UUID) (model.Mail, error)
@@ -27,7 +27,7 @@ type SmtpConfig struct {
 	Password string
 }
 
-type MailWorker struct {
+type Worker struct {
 	smtpClient *smtp.Client
 	author     string
 
@@ -39,7 +39,7 @@ type MailWorker struct {
 	host string
 }
 
-func NewWorker(host string, smtpConfig SmtpConfig, mails storage.Mail, users storage.User, q queue.DelayedQueue) (*MailWorker, error) {
+func NewWorker(host string, smtpConfig SmtpConfig, mails storage.Mail, users storage.User, q queue.DelayedQueue) (*Worker, error) {
 	cl, err := smtp.Dial(smtpConfig.Addr)
 	if err != nil {
 		return nil, fmt.Errorf("can't dial: %w", err)
@@ -56,7 +56,7 @@ func NewWorker(host string, smtpConfig SmtpConfig, mails storage.Mail, users sto
 		return nil, fmt.Errorf("can't auth: %w", err)
 	}
 
-	return &MailWorker{
+	return &Worker{
 		smtpClient: cl,
 		author:     smtpConfig.Username,
 		mails:      mails,
@@ -66,7 +66,7 @@ func NewWorker(host string, smtpConfig SmtpConfig, mails storage.Mail, users sto
 	}, nil
 }
 
-func (m *MailWorker) Close() error {
+func (m *Worker) Close() error {
 	err := m.smtpClient.Quit()
 	if err != nil {
 		return m.smtpClient.Close()
@@ -74,7 +74,7 @@ func (m *MailWorker) Close() error {
 	return nil
 }
 
-func (m *MailWorker) SendMailToUser(ctx context.Context, mail model.Mail) error {
+func (m *Worker) CreateAndSend(ctx context.Context, mail model.Mail) error {
 	id, err := m.mails.CreateMail(ctx, mail)
 	if err != nil {
 		return fmt.Errorf("can't create mail: %w", err)
@@ -90,11 +90,6 @@ func (m *MailWorker) SendMailToUser(ctx context.Context, mail model.Mail) error 
 	err = m.Send(user, mail)
 	if err != nil {
 		return fmt.Errorf("can't send mail: %w", err)
-	}
-
-	err = m.mails.MarkAsSent(ctx, id, time.Now())
-	if err != nil {
-		return fmt.Errorf("can't mark mail as sent: %w", err)
 	}
 
 	return nil
@@ -125,7 +120,7 @@ func buildHtml(host string, user model.User, mail model.Mail) (bytes.Buffer, err
 
 }
 
-func (m *MailWorker) Send(user model.User, mail model.Mail) error {
+func (m *Worker) Send(user model.User, mail model.Mail) error {
 	err := m.smtpClient.Mail(m.author, nil)
 	if err != nil {
 		return fmt.Errorf("can't set author: %w", err)
@@ -143,12 +138,8 @@ func (m *MailWorker) Send(user model.User, mail model.Mail) error {
 
 	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
 	body, err := buildHtml(m.host, user, mail)
-	if err != nil {
-		return fmt.Errorf("can't build html: %w", err)
-	}
-	msg := fmt.Sprintf("Subject: %s\n%s\n%s\n", mail.Subject, mime, body.String())
 
-	_, err = fmt.Fprintf(wc, msg)
+	_, err = fmt.Fprintf(wc, "Subject: %s\n%s\n%s\n", mail.Subject, mime, body.String())
 	if err != nil {
 		return fmt.Errorf("can't write message: %w", err)
 	}
@@ -157,10 +148,16 @@ func (m *MailWorker) Send(user model.User, mail model.Mail) error {
 	if err != nil {
 		return fmt.Errorf("can't close writer: %w", err)
 	}
+
+	err = m.mails.MarkAsSent(context.Background(), mail.ID, time.Now())
+	if err != nil {
+		fmt.Printf("can't mark mail as sent: %v", err)
+	}
+
 	return nil
 }
 
-func (m *MailWorker) CreateDelayedMail(ctx context.Context, mail model.Mail, delay time.Time) error {
+func (m *Worker) CreateDelayedMail(ctx context.Context, mail model.Mail, delay time.Time) error {
 	id, err := m.mails.CreateMail(ctx, mail)
 	if err != nil {
 		return fmt.Errorf("can't create mail: %w", err)
@@ -172,7 +169,7 @@ func (m *MailWorker) CreateDelayedMail(ctx context.Context, mail model.Mail, del
 	return nil
 }
 
-func (m *MailWorker) Run() {
+func (m *Worker) Run() {
 	ch := m.queue.GetReadyChannel()
 
 	for {
@@ -193,19 +190,14 @@ func (m *MailWorker) Run() {
 				fmt.Printf("can't send mail: %v", err)
 				continue
 			}
-			err = m.mails.MarkAsSent(context.Background(), mail.ID, time.Now())
-			if err != nil {
-				fmt.Printf("can't mark mail as sent: %v", err)
-				continue
-			}
 		}
 	}
 }
 
-func (m *MailWorker) GetMailsBySentTo(ctx context.Context, userId uuid.UUID) ([]model.Mail, error) {
+func (m *Worker) GetMailsBySentTo(ctx context.Context, userId uuid.UUID) ([]model.Mail, error) {
 	return m.mails.GetMailsBySentTo(ctx, userId)
 }
 
-func (m *MailWorker) GetMailById(ctx context.Context, id uuid.UUID) (model.Mail, error) {
+func (m *Worker) GetMailById(ctx context.Context, id uuid.UUID) (model.Mail, error) {
 	return m.mails.GetMailById(ctx, id)
 }

@@ -17,11 +17,14 @@ type DelayedQueue interface {
 	Enqueue(ctx context.Context, mail Mail, runAt int64) error
 	GetReadyChannel() <-chan []Mail
 	Run()
+	Stop()
 }
 
 type queue struct {
 	ready chan []Mail
 	rds   *redis.Client
+
+	stop chan struct{}
 }
 
 func NewQueue(ctx context.Context, addr, password string, db int) (DelayedQueue, error) {
@@ -61,48 +64,59 @@ func (q *queue) GetReadyChannel() <-chan []Mail {
 	return q.ready
 }
 
+func (q *queue) getFromRedis() ([]Mail, error) {
+	pipe := q.rds.TxPipeline()
+
+	now := time.Now().Unix()
+	res := pipe.ZRangeByScoreWithScores(context.Background(), "mails", &redis.ZRangeBy{
+		Min: "0",
+		Max: fmt.Sprint(now),
+	})
+
+	pipe.ZRemRangeByScore(context.Background(), "mails", "0", fmt.Sprint(now))
+
+	_, err := pipe.Exec(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("can't exec pipeline: %w", err)
+	}
+
+	result, err := res.Result()
+	if err != nil {
+		return nil, fmt.Errorf("can't get result: %w", err)
+	}
+
+	var mails []Mail
+	for _, v := range result {
+		var mail Mail
+		err := json.Unmarshal([]byte(v.Member.(string)), &mail)
+		if err != nil {
+			return nil, fmt.Errorf("can't unmarshal mail: %w", err)
+		}
+		mails = append(mails, mail)
+	}
+
+	return mails, nil
+}
+
 func (q *queue) Run() {
 	for {
-		pipe := q.rds.TxPipeline()
-
-		now := time.Now().Unix()
-		res := pipe.ZRangeByScoreWithScores(context.Background(), "mails", &redis.ZRangeBy{
-			Min: "0",
-			Max: fmt.Sprint(now),
-		})
-
-		pipe.ZRemRangeByScore(context.Background(), "mails", "0", fmt.Sprint(now))
-
-		_, err := pipe.Exec(context.Background())
-		if err != nil {
-			fmt.Printf("can't run queue: %v", err)
-			time.Sleep(time.Second)
-			continue
-		}
-
-		result, err := res.Result()
-		if err != nil {
-			fmt.Printf("can't run queue: %v", err)
-			time.Sleep(time.Second)
-			continue
-		}
-
-		var mails []Mail
-		for _, v := range result {
-			var mail Mail
-			err := json.Unmarshal([]byte(v.Member.(string)), &mail)
+		select {
+		case <-time.Tick(time.Second):
+			mails, err := q.getFromRedis()
 			if err != nil {
-				fmt.Printf("can't run queue: %v", err)
-				time.Sleep(time.Second)
+				fmt.Println(err)
 				continue
 			}
-			mails = append(mails, mail)
+			if len(mails) > 0 {
+				q.ready <- mails
+			}
+		case <-q.stop:
+			return
 		}
-
-		if len(mails) > 0 {
-			q.ready <- mails
-		}
-
-		time.Sleep(time.Second)
 	}
+}
+
+func (q *queue) Stop() {
+	q.stop <- struct{}{}
+	close(q.stop)
 }

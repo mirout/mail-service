@@ -2,7 +2,9 @@ package model
 
 import (
 	"database/sql"
+	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/google/uuid"
+	"time"
 )
 
 type User struct {
@@ -33,6 +35,14 @@ type MailJson struct {
 	Subject string `json:"subject"`
 	Body    string `json:"body"`
 	SendAt  string `json:"send_at"`
+}
+
+func (m *MailJson) Validate() error {
+	return validation.ValidateStruct(m,
+		validation.Field(&m.Subject, validation.Required),
+		validation.Field(&m.Body, validation.Required),
+		validation.Field(&m.SendAt, validation.Date(time.RFC3339)),
+	)
 }
 
 type MailWithUser struct {

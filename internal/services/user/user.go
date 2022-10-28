@@ -1,7 +1,9 @@
 package user
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"log"
@@ -88,9 +90,11 @@ func (s *userHandlers) GetUser(w http.ResponseWriter, r *http.Request) {
 		user, err = s.storage.GetUserByEmail(r.Context(), email)
 	}
 
-	if err != nil {
-		log.Println(err)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		w.WriteHeader(http.StatusInternalServerError)
+		return
+	} else if errors.Is(err, sql.ErrNoRows) {
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 

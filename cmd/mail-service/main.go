@@ -14,6 +14,7 @@ import (
 	"mail-service/internal/services/user"
 	"mail-service/internal/storage"
 	"os"
+	"os/signal"
 )
 
 type Options struct {
@@ -69,6 +70,7 @@ func main() {
 		log.Fatalf("Can't create delayedQueue: %v", err)
 	}
 	go delayedQueue.Run()
+	defer delayedQueue.Stop()
 
 	mailServerAddr := fmt.Sprintf("%s:%d", opts.SmtpHost, opts.SmtpPort)
 	smtpConf := mail.SmtpConfig{Addr: mailServerAddr, Username: opts.MailUsername, Password: opts.MailPassword}
@@ -77,7 +79,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Can't create mail server: %v", err)
 	}
-	defer func(mailSender *mail.MailWorker) {
+	defer func(mailSender *mail.Worker) {
 		err := mailSender.Close()
 		if err != nil {
 			log.Printf("Can't close mail server: %v", err)
@@ -94,8 +96,19 @@ func main() {
 		opts.ServerPort,
 	)
 
-	if err = h.ListenAndServe(); err != nil {
-		log.Fatalf("Can't start server: %v", err)
-	}
+	go func() {
+		if err = h.ListenAndServe(); err != nil {
+			log.Fatalf("Can't start server: %v", err)
+		}
+	}()
 
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt)
+
+	<-stop
+
+	err = h.Shutdown(context.Background())
+	if err != nil {
+		log.Fatalf("Can't shutdown server: %v", err)
+	}
 }

@@ -2,7 +2,9 @@ package mail
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"log"
@@ -23,10 +25,10 @@ type MailHandlers interface {
 type mailHandlers struct {
 	groups storage.Group
 	users  storage.User
-	sender MailSender
+	sender Sender
 }
 
-func NewMailHandlers(groups storage.Group, users storage.User, sender MailSender) MailHandlers {
+func NewMailHandlers(groups storage.Group, users storage.User, sender Sender) MailHandlers {
 	return &mailHandlers{groups: groups, users: users, sender: sender}
 }
 
@@ -58,13 +60,13 @@ func (s *mailHandlers) SendMailToUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if mail.Subject == "" || mail.Body == "" {
+	err = mail.Validate()
+	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	err = s.sendToUser(r.Context(), mail, user)
-
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -80,13 +82,6 @@ func (s *mailHandlers) SendMailToGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := s.groups.GetUsersByGroup(r.Context(), id)
-	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
 	var mail model.MailJson
 	err = json.NewDecoder(r.Body).Decode(&mail)
 	if err != nil {
@@ -94,8 +89,18 @@ func (s *mailHandlers) SendMailToGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if mail.Subject == "" || mail.Body == "" {
+	err = mail.Validate()
+	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	users, err := s.groups.GetUsersByGroup(r.Context(), id)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	} else if errors.Is(err, sql.ErrNoRows) {
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
@@ -111,7 +116,7 @@ func (s *mailHandlers) SendMailToGroup(w http.ResponseWriter, r *http.Request) {
 
 func (s *mailHandlers) sendToUser(ctx context.Context, mail model.MailJson, user model.User) error {
 	if mail.SendAt == "" {
-		return s.sender.SendMailToUser(ctx, model.Mail{
+		return s.sender.CreateAndSend(ctx, model.Mail{
 			ToUserId: user.ID,
 			Subject:  mail.Subject,
 			Body:     mail.Body,
@@ -138,15 +143,20 @@ func (s *mailHandlers) GetMailsSentToUser(w http.ResponseWriter, r *http.Request
 	}
 
 	user, err := s.users.GetUser(r.Context(), id)
-	if err != nil {
-		log.Println(err)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		w.WriteHeader(http.StatusInternalServerError)
+		return
+	} else if errors.Is(err, sql.ErrNoRows) {
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
 	mails, err := s.sender.GetMailsBySentTo(r.Context(), user.ID)
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		w.WriteHeader(http.StatusInternalServerError)
+		return
+	} else if errors.Is(err, sql.ErrNoRows) {
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
@@ -166,8 +176,11 @@ func (s *mailHandlers) GetMailById(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mail, err := s.sender.GetMailById(r.Context(), id)
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		w.WriteHeader(http.StatusInternalServerError)
+		return
+	} else if errors.Is(err, sql.ErrNoRows) {
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
